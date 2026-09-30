@@ -19,6 +19,7 @@ app.use(express.static(path.join(import.meta.dirname, './public')));
 
 wss.on('connection', (ws) => handleConnection(ws, registry));
 
+// TODO: add clearInterval on server shutdown
 const heartbeatIntervalId = startHeartbeat(registry);
 
 server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

@@ -326,13 +326,22 @@
           renderServerMessage(JSON.parse(event.data));
         })
 
+        // Must match the server's close codes (4000–4999 is the range reserved for applications)
+        const CloseCode = {
+          MESSAGE_TOO_BIG: 1009,
+          RATE_LIMIT_EXCEEDED: 4001,
+          INVALID_MESSAGE: 4002,
+        };
+
         // Human-readable text for WebSocket close codes the server may send
-        function describeClose(code, reason) {
+        function describeClose(code) {
           switch (code) {
-            case 1008:
-              return `Сервер відключив вас за порушення правил${reason ? `: ${reason}` : ''}`;
-            case 1009:
+            case CloseCode.MESSAGE_TOO_BIG:
               return 'Сервер відключив вас: повідомлення завелике';
+            case CloseCode.RATE_LIMIT_EXCEEDED:
+              return 'Сервер відключив вас: забагато повідомлень, пишіть повільніше';
+            case CloseCode.INVALID_MESSAGE:
+              return 'Сервер відключив вас: некоректне повідомлення';
             default:
               return 'Зʼєднання з сервером втрачено';
           }
@@ -341,7 +350,7 @@
         socket.addEventListener("close", (event) => {
           console.log('Disconnected', event.code, event.reason);
           setStatus('offline', 'Офлайн');
-          addMessage(describeClose(event.code, event.reason), { kind: 'error' });
+          addMessage(describeClose(event.code), { kind: 'error' });
         })
     </script>
 </body>

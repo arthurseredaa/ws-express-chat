@@ -18,7 +18,6 @@ export class ClientRegistry {
 
     broadcastMessage(data: ServerMessage, exceptId?: number): void {
         const messageData = JSON.stringify(data);
-        console.log(Buffer.byteLength(messageData, 'utf8'));
 
         for (const [key, value] of this.#clients) {
             if (exceptId === key) continue;

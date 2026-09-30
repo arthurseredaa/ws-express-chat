@@ -12,12 +12,14 @@ export const validateClientMessage = (data: unknown): ClientMessage | null => {
 
     if (data.type !== 'chat') return null;
 
-    if (!data.text.trim()) return null;
+    const dataTrimmed = data.text.trim();
 
-    if (data.text.length > MESSAGE_LENGTH_LIMIT) return null;
+    if (!dataTrimmed) return null;
+
+    if (dataTrimmed.length > MESSAGE_LENGTH_LIMIT) return null;
 
     return {
         type: data.type,
-        text: data.text.trim(),
+        text: dataTrimmed,
     };
 }

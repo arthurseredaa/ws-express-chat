@@ -1,5 +1,6 @@
 import {WebSocket} from "ws";
 import type {ClientRegistry} from "../client-registry.ts";
+import {validateClientMessage} from "./validate-client-message.ts";
 
 export const handleConnection = (ws: WebSocket, registry: ClientRegistry)=> {
     const clientId = registry.registerClient(ws);
@@ -24,10 +25,26 @@ export const handleConnection = (ws: WebSocket, registry: ClientRegistry)=> {
     });
 
     ws.on('message', (data) => {
+        let parsedData: string | null = null
+
+        try {
+            parsedData = JSON.parse(data.toString());
+        } catch (error) {
+            console.error(`Unable to parse message data: ${clientId}`);
+            ws.close(1008, 'Policy violation')
+        }
+
+        const messageData = validateClientMessage(parsedData);
+
+        if (!messageData) {
+            ws.close(1008, 'Policy violation')
+            return;
+        }
+
         registry.broadcastMessage({
-            text: data.toString(),
             clientId,
-            type: 'chat'
+            text: messageData.text,
+            type: 'chat',
         }, clientId)
     })
 }

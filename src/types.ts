@@ -9,3 +9,8 @@ export type ServerMessage = {
     type: 'join';
     clientId: number;
 }
+
+export type ClientMessage = {
+    type: 'chat',
+    text: string;
+}

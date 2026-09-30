@@ -7,9 +7,11 @@
     <style>
         body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
         #messages { list-style: none; padding: 0; border: 1px solid #ccc; min-height: 200px; }
-        #messages li { padding: 0.25rem 0.5rem; border-bottom: 1px solid #eee; }
-        .controls { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        #messages li { padding: 0.25rem 0.5rem; border-bottom: 1px solid #eee; overflow-wrap: anywhere; }
+        .controls { display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
         #message-input { flex: 1; }
+        #char-counter { font-size: 0.8rem; color: #888; font-variant-numeric: tabular-nums; }
+        #char-counter.limit { color: #c00; }
     </style>
 </head>
 <body>
@@ -19,6 +21,7 @@
 
     <div class="controls">
         <input id="message-input" type="text" placeholder="Повідомлення">
+        <span id="char-counter"></span>
         <button id="send-button">Надіслати</button>
     </div>
 
@@ -26,6 +29,18 @@
         const messagesList = document.querySelector('#messages');
         const messageInput = document.querySelector('#message-input');
         const sendButton = document.querySelector('#send-button');
+        const charCounter = document.querySelector('#char-counter');
+
+        // Must match the server-side text limit (step 8.3)
+        const MAX_MESSAGE_LENGTH = 500;
+        messageInput.maxLength = MAX_MESSAGE_LENGTH;
+
+        function updateCharCounter() {
+            const length = messageInput.value.length;
+            charCounter.textContent = `${length}/${MAX_MESSAGE_LENGTH}`;
+            charCounter.classList.toggle('limit', length >= MAX_MESSAGE_LENGTH);
+        }
+        updateCharCounter();
 
         // Adds one line of text to the message list on the page
         function addMessage(text) {
@@ -37,11 +52,24 @@
         // Connect to the same host the page was loaded from (works on localhost and from a phone)
         const socket = new WebSocket(`ws://${location.host}`);
 
-        sendButton.addEventListener('click', () => {
-          addMessage(`Me: ${messageInput.value}`)
-          socket.send(messageInput.value)
-          messageInput.value = ''
+        function sendMessage() {
+          const text = messageInput.value.trim();
+          if (text === '') return;
+
+          addMessage(`Me: ${text}`);
+          socket.send(JSON.stringify({ type: 'chat', text }));
+          messageInput.value = '';
+          updateCharCounter();
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+
+        messageInput.addEventListener('keydown', (event) => {
+          // isComposing: don't send while an IME is still composing a character
+          if (event.key === 'Enter' && !event.isComposing) sendMessage();
         });
+
+        messageInput.addEventListener('input', updateCharCounter);
 
         // Turns a server message object into a line of text for the chat
         function formatServerMessage(msg) {
@@ -64,9 +92,21 @@
           if (text !== null) addMessage(text);
         })
 
+        // Human-readable text for WebSocket close codes the server may send
+        function describeClose(code, reason) {
+          switch (code) {
+            case 1008:
+              return `Сервер відключив вас за порушення правил${reason ? `: ${reason}` : ''}`;
+            case 1009:
+              return 'Сервер відключив вас: повідомлення завелике';
+            default:
+              return 'Зʼєднання з сервером втрачено';
+          }
+        }
+
         socket.addEventListener("close", (event) => {
           console.log('Disconnected', event.code, event.reason);
-          addMessage('Зʼєднання з сервером втрачено');
+          addMessage(describeClose(event.code, event.reason));
         })
     </script>
 </body>

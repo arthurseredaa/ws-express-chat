@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Realtime chat</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        #messages { list-style: none; padding: 0; border: 1px solid #ccc; min-height: 200px; }
+        #messages li { padding: 0.25rem 0.5rem; border-bottom: 1px solid #eee; }
+        .controls { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        #message-input { flex: 1; }
+    </style>
+</head>
+<body>
+    <h1>Realtime chat</h1>
+
+    <ul id="messages"></ul>
+
+    <div class="controls">
+        <input id="message-input" type="text" placeholder="Повідомлення">
+        <button id="send-button">Надіслати</button>
+    </div>
+
+    <script>
+        const messagesList = document.querySelector('#messages');
+        const messageInput = document.querySelector('#message-input');
+        const sendButton = document.querySelector('#send-button');
+
+        // Adds one line of text to the message list on the page
+        function addMessage(text) {
+            const item = document.createElement('li');
+            item.textContent = text;
+            messagesList.append(item);
+        }
+
+        // Connect to the same host the page was loaded from (works on localhost and from a phone)
+        const socket = new WebSocket(`ws://${location.host}`);
+
+        sendButton.addEventListener('click', () => {
+          addMessage(`Me: ${messageInput.value}`)
+          socket.send(messageInput.value)
+          messageInput.value = ''
+        });
+
+        // Turns a server message object into a line of text for the chat
+        function formatServerMessage(msg) {
+          switch (msg.type) {
+            case 'chat':
+              return `[${msg.clientId}]: ${msg.text}`;
+            case 'join':
+              return `Клієнт ${msg.clientId} зайшов`;
+            case 'leave':
+              return `Клієнт ${msg.clientId} вийшов`;
+            default:
+              console.warn('Unknown message type', msg);
+              return null;
+          }
+        }
+
+        socket.addEventListener("message", (event) => {
+          const msg = JSON.parse(event.data);
+          const text = formatServerMessage(msg);
+          if (text !== null) addMessage(text);
+        })
+
+        socket.addEventListener("close", (event) => {
+          console.log('Disconnected', event.code, event.reason);
+          addMessage('Зʼєднання з сервером втрачено');
+        })
+    </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "realtime-chat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --watch ./src/index.ts"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/ws": "8.18.2",
+    "typescript": "6.0.3"
+  },
+  "private": true,
+  "type": "module"
+}

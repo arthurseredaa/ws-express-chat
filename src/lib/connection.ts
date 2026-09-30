@@ -4,12 +4,20 @@ import {validateClientMessage} from "./validate-client-message.ts";
 import {CloseError, type CloseErrorType, MESSAGE_COUNT_LIMIT, RATE_LIMIT_WINDOW} from "../constants.ts";
 import {parseClientMessage} from "./parse-client-message.ts";
 import {MessageRateLimiter} from "./message-rate-limiter.ts";
+import type {IncomingMessage} from "node:http";
+import {getUserIdFromRequest} from "./get-user-id-from-request.ts";
 
-export const handleConnection = (ws: WebSocket, registry: ClientRegistry)=> {
+export const handleConnection = (ws: WebSocket, request: IncomingMessage, registry: ClientRegistry)=> {
+    const userId = getUserIdFromRequest(request);
+
+    if (userId === null) {
+        return closeWithError(ws, CloseError.UNAUTHORIZED);
+    }
+
     const clientId = registry.registerClient(ws);
     const messageRateLimiter = new MessageRateLimiter(MESSAGE_COUNT_LIMIT, RATE_LIMIT_WINDOW);
 
-    console.log(`Client ID: ${clientId} connected`);
+    console.log(`[c_id: ${clientId}, u_id: ${userId}] connected`);
 
     registry.broadcastMessage({
         type: 'join',
@@ -32,16 +40,14 @@ export const handleConnection = (ws: WebSocket, registry: ClientRegistry)=> {
         const isMessageAllowed = messageRateLimiter.isAllowed();
 
         if (!isMessageAllowed) {
-            closeWithError(ws, CloseError.RATE_LIMIT_EXCEEDED);
-            return;
+            return closeWithError(ws, CloseError.RATE_LIMIT_EXCEEDED);
         }
 
         const parsedData = parseClientMessage(data)
         const messageData = validateClientMessage(parsedData);
 
         if (!messageData) {
-            closeWithError(ws, CloseError.INVALID_MESSAGE);
-            return;
+            return closeWithError(ws, CloseError.INVALID_MESSAGE);
         }
 
         registry.broadcastMessage({

@@ -207,20 +207,99 @@
         }
 
         #send-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .header-right { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+
+        #current-user {
+            font-size: 0.8rem;
+            color: var(--muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .link-button {
+            font: inherit;
+            font-size: 0.8rem;
+            padding: 0;
+            border: 0;
+            background: none;
+            color: var(--accent);
+            cursor: pointer;
+        }
+
+        .auth {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+            padding: 1.5rem 1rem;
+        }
+
+        .auth h2 { margin: 0 0 0.25rem; font-size: 1.25rem; }
+
+        .auth input {
+            font: inherit;
+            font-size: 1rem;
+            padding: 0.65rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .auth-actions { display: flex; gap: 0.5rem; }
+
+        .auth-actions button {
+            flex: 1;
+            font: inherit;
+            font-weight: 600;
+            padding: 0.65rem 1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 1px solid var(--accent);
+        }
+
+        #login-button { background: var(--accent); color: var(--accent-text); }
+        #register-button { background: transparent; color: var(--accent); }
+        .auth-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #auth-error { min-height: 1.2em; margin: 0; font-size: 0.85rem; color: var(--danger); }
+
+        [hidden] { display: none !important; }
     </style>
 </head>
 <body>
     <main class="chat">
         <header class="chat-header">
             <h1>Realtime chat</h1>
-            <span id="status" class="status" data-state="connecting">Підключення…</span>
+            <div class="header-right">
+                <span id="current-user"></span>
+                <button id="logout-button" class="link-button" hidden>Вийти</button>
+                <span id="status" class="status" data-state="offline">Офлайн</span>
+            </div>
         </header>
 
-        <ul id="messages" aria-live="polite">
+        <form id="auth-form" class="auth" hidden>
+            <h2>Вхід у чат</h2>
+            <input id="auth-email" type="email" placeholder="Email" autocomplete="email" required>
+            <input id="auth-password" type="password" placeholder="Пароль (мін. 6 символів)" autocomplete="current-password" minlength="6" required>
+            <div class="auth-actions">
+                <button id="login-button" type="submit">Увійти</button>
+                <button id="register-button" type="button">Зареєструватися</button>
+            </div>
+            <p id="auth-error" role="alert"></p>
+        </form>
+
+        <ul id="messages" aria-live="polite" hidden>
             <li class="empty">Повідомлень поки немає</li>
         </ul>
 
-        <div class="composer">
+        <div id="composer" class="composer" hidden>
             <input id="message-input" type="text" placeholder="Повідомлення" autocomplete="off" enterkeyhint="send">
             <span id="char-counter"></span>
             <button id="send-button" disabled>Надіслати</button>
@@ -280,15 +359,111 @@
             appendItem(item);
         }
 
-        // Connect to the same host the page was loaded from (works on localhost and from a phone)
-        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-        const socket = new WebSocket(`${protocol}://${location.host}`);
+        const authForm = document.querySelector('#auth-form');
+        const authEmail = document.querySelector('#auth-email');
+        const authPassword = document.querySelector('#auth-password');
+        const loginButton = document.querySelector('#login-button');
+        const registerButton = document.querySelector('#register-button');
+        const authError = document.querySelector('#auth-error');
+        const logoutButton = document.querySelector('#logout-button');
+        const currentUser = document.querySelector('#current-user');
+        const composer = document.querySelector('#composer');
 
-        socket.addEventListener('open', () => setStatus('online', 'Онлайн'));
+        const TOKEN_KEY = 'authToken';
+
+        // localStorage can throw (private mode, blocked site data), so every access is guarded
+        function loadToken() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
+        function saveToken(token) { try { localStorage.setItem(TOKEN_KEY, token); } catch {} }
+        function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+        // Reads the email from the JWT payload for display only — the server never trusts this
+        function emailFromToken(token) {
+          try {
+            const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            return JSON.parse(atob(payload)).email ?? '';
+          } catch {
+            return '';
+          }
+        }
+
+        let socket = null;
+
+        function resetMessages() {
+          const empty = document.createElement('li');
+          empty.className = 'empty';
+          empty.textContent = 'Повідомлень поки немає';
+          messagesList.replaceChildren(empty);
+        }
+
+        function showAuth(message = '') {
+          authForm.hidden = false;
+          messagesList.hidden = true;
+          composer.hidden = true;
+          logoutButton.hidden = true;
+          currentUser.textContent = '';
+          authError.textContent = message;
+          setStatus('offline', 'Офлайн');
+          authEmail.focus();
+        }
+
+        function showChat(token) {
+          authForm.hidden = true;
+          messagesList.hidden = false;
+          composer.hidden = false;
+          logoutButton.hidden = false;
+          currentUser.textContent = emailFromToken(token);
+          connect(token);
+        }
+
+        // mode: 'login' | 'register' — both endpoints take {email, password} and return {token}
+        async function authenticate(mode) {
+          if (!authForm.reportValidity()) return;
+
+          loginButton.disabled = registerButton.disabled = true;
+          authError.textContent = '';
+
+          try {
+            const response = await fetch(`/auth/${mode}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: authEmail.value, password: authPassword.value }),
+            });
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok || !body.token) {
+              authError.textContent = body.error ?? `Помилка ${response.status}`;
+              return;
+            }
+
+            saveToken(body.token);
+            authPassword.value = '';
+            resetMessages();
+            showChat(body.token);
+          } catch {
+            authError.textContent = 'Сервер недоступний';
+          } finally {
+            loginButton.disabled = registerButton.disabled = false;
+          }
+        }
+
+        authForm.addEventListener('submit', (event) => {
+          event.preventDefault();
+          authenticate('login');
+        });
+        registerButton.addEventListener('click', () => authenticate('register'));
+
+        logoutButton.addEventListener('click', () => {
+          clearToken();
+          const oldSocket = socket;
+          socket = null; // so its close event is ignored below
+          oldSocket?.close(1000, 'Logout');
+          resetMessages();
+          showAuth();
+        });
 
         function sendMessage() {
           const text = messageInput.value.trim();
-          if (text === '' || socket.readyState !== WebSocket.OPEN) return;
+          if (text === '' || socket?.readyState !== WebSocket.OPEN) return;
 
           addMessage(text, { kind: 'own' });
           socket.send(JSON.stringify({ type: 'chat', text }));
@@ -322,15 +497,12 @@
           }
         }
 
-        socket.addEventListener("message", (event) => {
-          renderServerMessage(JSON.parse(event.data));
-        })
-
         // Must match the server's close codes (4000–4999 is the range reserved for applications)
         const CloseCode = {
           MESSAGE_TOO_BIG: 1009,
           RATE_LIMIT_EXCEEDED: 4001,
           INVALID_MESSAGE: 4002,
+          UNAUTHORIZED: 4003,
         };
 
         // Human-readable text for WebSocket close codes the server may send
@@ -347,11 +519,38 @@
           }
         }
 
-        socket.addEventListener("close", (event) => {
-          console.log('Disconnected', event.code, event.reason);
-          setStatus('offline', 'Офлайн');
-          addMessage(describeClose(event.code), { kind: 'error' });
-        })
+        function connect(token) {
+          // Same host the page was loaded from (works on localhost and from a phone).
+          // Browsers can't set headers on the WebSocket handshake, so the token travels in the URL.
+          const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+          const ws = new WebSocket(`${protocol}://${location.host}/?token=${encodeURIComponent(token)}`);
+          socket = ws;
+          setStatus('connecting', 'Підключення…');
+
+          ws.addEventListener('open', () => setStatus('online', 'Онлайн'));
+
+          ws.addEventListener('message', (event) => renderServerMessage(JSON.parse(event.data)));
+
+          ws.addEventListener('close', (event) => {
+            if (ws !== socket) return; // a socket we already replaced or closed on purpose (logout)
+
+            console.log('Disconnected', event.code, event.reason);
+            socket = null;
+
+            if (event.code === CloseCode.UNAUTHORIZED) {
+              clearToken();
+              showAuth('Сесія недійсна або закінчилась, увійдіть знову');
+              return;
+            }
+
+            setStatus('offline', 'Офлайн');
+            addMessage(describeClose(event.code), { kind: 'error' });
+          });
+        }
+
+        const savedToken = loadToken();
+        if (savedToken) showChat(savedToken);
+        else showAuth();
     </script>
 </body>
 </html>

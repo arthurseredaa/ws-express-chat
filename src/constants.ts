@@ -14,6 +14,10 @@ export const CloseError = {
         code: 4002,
         reason: 'Invalid message',
     },
+    UNAUTHORIZED: {
+        code: 4003,
+        reason: 'Unauthorized',
+    }
 } as const;
 
 export type CloseErrorType = typeof CloseError[keyof typeof CloseError];

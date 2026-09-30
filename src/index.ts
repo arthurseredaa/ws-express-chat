@@ -6,6 +6,7 @@ import {ClientRegistry} from "./client-registry.ts";
 import {startHeartbeat} from "./lib/start-heartbeat.ts";
 import {handleConnection} from "./lib/connection.ts";
 import {MAX_WS_PAYLOAD} from "./constants.ts";
+import {authRoutes} from "./routes/auth.ts";
 
 const app = express()
 const server = createServer(app);
@@ -15,9 +16,11 @@ const registry = new ClientRegistry();
 
 const wss = new WebSocketServer({server, maxPayload: MAX_WS_PAYLOAD});
 
+app.use(express.json());
 app.use(express.static(path.join(import.meta.dirname, './public')));
+app.use('/auth', authRoutes);
 
-wss.on('connection', (ws) => handleConnection(ws, registry));
+wss.on('connection', (ws, request) => handleConnection(ws, request, registry));
 
 // TODO: add clearInterval on server shutdown
 const heartbeatIntervalId = startHeartbeat(registry);

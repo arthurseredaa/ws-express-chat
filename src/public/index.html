@@ -2,34 +2,237 @@
 <html lang="uk">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
     <title>Realtime chat</title>
     <style>
-        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
-        #messages { list-style: none; padding: 0; border: 1px solid #ccc; min-height: 200px; }
-        #messages li { padding: 0.25rem 0.5rem; border-bottom: 1px solid #eee; overflow-wrap: anywhere; }
-        .controls { display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
-        #message-input { flex: 1; }
-        #char-counter { font-size: 0.8rem; color: #888; font-variant-numeric: tabular-nums; }
-        #char-counter.limit { color: #c00; }
+        :root {
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --muted: #6b7280;
+            --accent: #4f46e5;
+            --accent-text: #ffffff;
+            --own-bg: var(--accent);
+            --own-text: #ffffff;
+            --other-bg: #eef0f4;
+            --danger: #dc2626;
+            --ok: #16a34a;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0b0d12;
+                --surface: #14171f;
+                --border: #262b36;
+                --text: #e5e7eb;
+                --muted: #9aa3b2;
+                --accent: #6366f1;
+                --other-bg: #1e2330;
+                --danger: #f87171;
+                --ok: #4ade80;
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body { height: 100%; margin: 0; }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+        }
+
+        .chat {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 720px;
+            height: 100dvh;
+            background: var(--surface);
+        }
+
+        /* Desktop: floating card instead of full-bleed */
+        @media (min-width: 768px) {
+            body { align-items: center; }
+            .chat {
+                height: min(860px, calc(100dvh - 3rem));
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                box-shadow: 0 10px 40px rgb(0 0 0 / 0.08);
+                overflow: hidden;
+            }
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.875rem 1rem;
+            padding-top: max(0.875rem, env(safe-area-inset-top));
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chat-header h1 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .status::before {
+            content: "";
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 50%;
+            background: var(--muted);
+        }
+
+        .status[data-state="online"]::before { background: var(--ok); }
+        .status[data-state="offline"]::before { background: var(--danger); }
+
+        #messages {
+            flex: 1;
+            list-style: none;
+            margin: 0;
+            padding: 1rem;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .empty {
+            margin: auto;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        #messages li:not(.empty) { max-width: 85%; overflow-wrap: anywhere; }
+
+        .msg {
+            padding: 0.5rem 0.75rem;
+            border-radius: 14px;
+            background: var(--other-bg);
+            line-height: 1.35;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg.own {
+            align-self: flex-end;
+            background: var(--own-bg);
+            color: var(--own-text);
+            border-bottom-left-radius: 14px;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg .author {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 0.1rem;
+        }
+
+        .system {
+            align-self: center;
+            font-size: 0.78rem;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .system.error { color: var(--danger); }
+
+        .composer {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+            border-top: 1px solid var(--border);
+        }
+
+        #message-input {
+            flex: 1;
+            min-width: 0;
+            font: inherit;
+            /* 16px+ prevents iOS Safari from zooming on focus */
+            font-size: 1rem;
+            padding: 0.65rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        #message-input:focus-visible,
+        #send-button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        #char-counter {
+            font-size: 0.75rem;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        #char-counter.limit { color: var(--danger); }
+
+        /* Counter is noise on small screens until you are close to the limit */
+        @media (max-width: 480px) {
+            #char-counter:not(.limit) { display: none; }
+        }
+
+        #send-button {
+            font: inherit;
+            font-weight: 600;
+            padding: 0.65rem 1.1rem;
+            border: 0;
+            border-radius: 999px;
+            background: var(--accent);
+            color: var(--accent-text);
+            cursor: pointer;
+        }
+
+        #send-button:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
 </head>
 <body>
-    <h1>Realtime chat</h1>
+    <main class="chat">
+        <header class="chat-header">
+            <h1>Realtime chat</h1>
+            <span id="status" class="status" data-state="connecting">Підключення…</span>
+        </header>
 
-    <ul id="messages"></ul>
+        <ul id="messages" aria-live="polite">
+            <li class="empty">Повідомлень поки немає</li>
+        </ul>
 
-    <div class="controls">
-        <input id="message-input" type="text" placeholder="Повідомлення">
-        <span id="char-counter"></span>
-        <button id="send-button">Надіслати</button>
-    </div>
+        <div class="composer">
+            <input id="message-input" type="text" placeholder="Повідомлення" autocomplete="off" enterkeyhint="send">
+            <span id="char-counter"></span>
+            <button id="send-button" disabled>Надіслати</button>
+        </div>
+    </main>
 
     <script>
         const messagesList = document.querySelector('#messages');
         const messageInput = document.querySelector('#message-input');
         const sendButton = document.querySelector('#send-button');
         const charCounter = document.querySelector('#char-counter');
+        const statusEl = document.querySelector('#status');
 
         // Must match the server-side text limit (step 8.3)
         const MAX_MESSAGE_LENGTH = 500;
@@ -42,21 +245,52 @@
         }
         updateCharCounter();
 
-        // Adds one line of text to the message list on the page
-        function addMessage(text) {
+        function setStatus(state, label) {
+            statusEl.dataset.state = state;
+            statusEl.textContent = label;
+            sendButton.disabled = state !== 'online';
+        }
+
+        // Adds one item to the list and keeps the view pinned to the newest message
+        // unless the user has scrolled up to read history
+        function appendItem(item) {
+            messagesList.querySelector('.empty')?.remove();
+            const nearBottom =
+                messagesList.scrollHeight - messagesList.scrollTop - messagesList.clientHeight < 80;
+            messagesList.append(item);
+            if (nearBottom) messagesList.scrollTop = messagesList.scrollHeight;
+        }
+
+        // kind: 'own' | 'other' | 'system' | 'error'
+        function addMessage(text, { kind = 'system', author = null } = {}) {
             const item = document.createElement('li');
             item.textContent = text;
-            messagesList.append(item);
+
+            if (kind === 'system' || kind === 'error') {
+                item.className = kind === 'error' ? 'system error' : 'system';
+            } else {
+                item.className = kind === 'own' ? 'msg own' : 'msg';
+                if (author) {
+                    const authorEl = document.createElement('span');
+                    authorEl.className = 'author';
+                    authorEl.textContent = author;
+                    item.prepend(authorEl);
+                }
+            }
+            appendItem(item);
         }
 
         // Connect to the same host the page was loaded from (works on localhost and from a phone)
-        const socket = new WebSocket(`ws://${location.host}`);
+        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        const socket = new WebSocket(`${protocol}://${location.host}`);
+
+        socket.addEventListener('open', () => setStatus('online', 'Онлайн'));
 
         function sendMessage() {
           const text = messageInput.value.trim();
-          if (text === '') return;
+          if (text === '' || socket.readyState !== WebSocket.OPEN) return;
 
-          addMessage(`Me: ${text}`);
+          addMessage(text, { kind: 'own' });
           socket.send(JSON.stringify({ type: 'chat', text }));
           messageInput.value = '';
           updateCharCounter();
@@ -71,25 +305,25 @@
 
         messageInput.addEventListener('input', updateCharCounter);
 
-        // Turns a server message object into a line of text for the chat
-        function formatServerMessage(msg) {
+        // Renders a server message object into the chat
+        function renderServerMessage(msg) {
           switch (msg.type) {
             case 'chat':
-              return `[${msg.clientId}]: ${msg.text}`;
+              addMessage(msg.text, { kind: 'other', author: `Клієнт ${msg.clientId}` });
+              break;
             case 'join':
-              return `Клієнт ${msg.clientId} зайшов`;
+              addMessage(`Клієнт ${msg.clientId} зайшов`);
+              break;
             case 'leave':
-              return `Клієнт ${msg.clientId} вийшов`;
+              addMessage(`Клієнт ${msg.clientId} вийшов`);
+              break;
             default:
               console.warn('Unknown message type', msg);
-              return null;
           }
         }
 
         socket.addEventListener("message", (event) => {
-          const msg = JSON.parse(event.data);
-          const text = formatServerMessage(msg);
-          if (text !== null) addMessage(text);
+          renderServerMessage(JSON.parse(event.data));
         })
 
         // Human-readable text for WebSocket close codes the server may send
@@ -106,7 +340,8 @@
 
         socket.addEventListener("close", (event) => {
           console.log('Disconnected', event.code, event.reason);
-          addMessage(describeClose(event.code, event.reason));
+          setStatus('offline', 'Офлайн');
+          addMessage(describeClose(event.code, event.reason), { kind: 'error' });
         })
     </script>
 </body>

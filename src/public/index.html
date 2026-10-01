@@ -268,7 +268,33 @@
         #register-button { background: transparent; color: var(--accent); }
         .auth-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        #auth-error { min-height: 1.2em; margin: 0; font-size: 0.85rem; color: var(--danger); }
+        #auth-error, #lobby-error { min-height: 1.2em; margin: 0; font-size: 0.85rem; color: var(--danger); }
+
+        .auth-actions .primary { background: var(--accent); color: var(--accent-text); }
+        .auth-actions .secondary { background: transparent; color: var(--accent); }
+
+        .auth .hint { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+        .room-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .room-info { display: flex; flex-direction: column; min-width: 0; }
+        #room-name { font-weight: 650; overflow-wrap: anywhere; }
+
+        #room-members {
+            color: var(--muted);
+            font-size: 0.78rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
 
         [hidden] { display: none !important; }
     </style>
@@ -294,6 +320,25 @@
             </div>
             <p id="auth-error" role="alert"></p>
         </form>
+
+        <form id="lobby-form" class="auth" hidden>
+            <h2>Лобі</h2>
+            <p class="hint">Створи нову кімнату або зайди в існуючу за її назвою.</p>
+            <input id="room-input" type="text" placeholder="Назва кімнати" autocomplete="off" maxlength="32" required>
+            <div class="auth-actions">
+                <button id="create-room-button" class="primary" type="submit">Створити</button>
+                <button id="join-room-button" class="secondary" type="button">Зайти</button>
+            </div>
+            <p id="lobby-error" role="alert"></p>
+        </form>
+
+        <div id="room-bar" class="room-bar" hidden>
+            <div class="room-info">
+                <span id="room-name"></span>
+                <span id="room-members"></span>
+            </div>
+            <button id="leave-room-button" class="link-button">Вийти з кімнати</button>
+        </div>
 
         <ul id="messages" aria-live="polite" hidden>
             <li class="empty">Повідомлень поки немає</li>
@@ -377,6 +422,15 @@
         function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch {} }
 
         // Reads the email from the JWT payload for display only — the server never trusts this
+        function userIdFromToken(token) {
+          try {
+            const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            return JSON.parse(atob(payload)).id ?? null;
+          } catch {
+            return null;
+          }
+        }
+
         function emailFromToken(token) {
           try {
             const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -395,25 +449,98 @@
           messagesList.replaceChildren(empty);
         }
 
+        const lobbyForm = document.querySelector('#lobby-form');
+        const roomInput = document.querySelector('#room-input');
+        const createRoomButton = document.querySelector('#create-room-button');
+        const joinRoomButton = document.querySelector('#join-room-button');
+        const lobbyError = document.querySelector('#lobby-error');
+        const roomBar = document.querySelector('#room-bar');
+        const roomNameEl = document.querySelector('#room-name');
+        const roomMembersEl = document.querySelector('#room-members');
+        const leaveRoomButton = document.querySelector('#leave-room-button');
+
+        // Which screen is visible: 'auth' | 'waiting' | 'lobby' | 'room'.
+        // 'waiting' = connected, but the server hasn't told us yet whether we're in a room.
+        function setScreen(screen) {
+          authForm.hidden = screen !== 'auth';
+          lobbyForm.hidden = screen !== 'lobby';
+          roomBar.hidden = screen !== 'room';
+          messagesList.hidden = screen !== 'room';
+          composer.hidden = screen !== 'room';
+          logoutButton.hidden = screen === 'auth';
+        }
+
+        let myUserId = null;
+        let members = new Set();
+
+        function renderMembers() {
+          const labels = [...members].map((id) => (id === myUserId ? `${id} (ви)` : `${id}`));
+          roomMembersEl.textContent = `Учасники (${members.size}): ${labels.join(', ')}`;
+        }
+
+        function setLobbyPending(pending) {
+          createRoomButton.disabled = joinRoomButton.disabled = pending;
+        }
+
         function showAuth(message = '') {
-          authForm.hidden = false;
-          messagesList.hidden = true;
-          composer.hidden = true;
-          logoutButton.hidden = true;
+          setScreen('auth');
           currentUser.textContent = '';
           authError.textContent = message;
           setStatus('offline', 'Офлайн');
           authEmail.focus();
         }
 
-        function showChat(token) {
-          authForm.hidden = true;
-          messagesList.hidden = false;
-          composer.hidden = false;
-          logoutButton.hidden = false;
+        function showLobby() {
+          setScreen('lobby');
+          setLobbyPending(false);
+          lobbyError.textContent = '';
+          roomInput.focus();
+        }
+
+        // Snapshot from the server: we are in `room`, these are everyone in it (including us)
+        function showRoom(room, memberIds) {
+          setScreen('room');
+          members = new Set(memberIds);
+          roomNameEl.textContent = `# ${room}`;
+          renderMembers();
+          resetMessages();
+          addMessage(`Ви в кімнаті «${room}»`);
+          messageInput.focus();
+        }
+
+        function startSession(token) {
+          setScreen('waiting');
           currentUser.textContent = emailFromToken(token);
+          myUserId = userIdFromToken(token);
           connect(token);
         }
+
+        // Lobby actions: the screen changes only when the server answers (room_joined or error)
+        function requestRoom(type) {
+          if (!lobbyForm.reportValidity()) return;
+          if (socket?.readyState !== WebSocket.OPEN) return;
+
+          lobbyError.textContent = '';
+          setLobbyPending(true);
+          socket.send(JSON.stringify({ type, room: roomInput.value.trim() }));
+        }
+
+        lobbyForm.addEventListener('submit', (event) => {
+          event.preventDefault();
+          requestRoom('create_room');
+        });
+        joinRoomButton.addEventListener('click', () => requestRoom('join_room'));
+
+        // Leaving is confirmed by the server with a `lobby` message
+        leaveRoomButton.addEventListener('click', () => {
+          if (socket?.readyState !== WebSocket.OPEN) return;
+          socket.send(JSON.stringify({ type: 'leave_room' }));
+        });
+
+        const ErrorText = {
+          room_exists: 'Кімната з такою назвою вже існує',
+          room_not_found: 'Кімнати з такою назвою немає',
+        };
 
         // mode: 'login' | 'register' — both endpoints take {email, password} and return {token}
         async function authenticate(mode) {
@@ -438,7 +565,7 @@
             saveToken(body.token);
             authPassword.value = '';
             resetMessages();
-            showChat(body.token);
+            startSession(body.token);
           } catch {
             authError.textContent = 'Сервер недоступний';
           } finally {
@@ -457,6 +584,8 @@
           const oldSocket = socket;
           socket = null; // so its close event is ignored below
           oldSocket?.close(1000, 'Logout');
+          myUserId = null;
+          members = new Set();
           resetMessages();
           showAuth();
         });
@@ -480,16 +609,30 @@
 
         messageInput.addEventListener('input', updateCharCounter);
 
-        // Renders a server message object into the chat
+        // Applies a server message: screen changes (lobby / room_joined / error) and room events
         function renderServerMessage(msg) {
           switch (msg.type) {
+            case 'lobby':
+              showLobby();
+              break;
+            case 'room_joined':
+              showRoom(msg.room, msg.members);
+              break;
+            case 'error':
+              setLobbyPending(false);
+              lobbyError.textContent = ErrorText[msg.code] ?? `Помилка: ${msg.code}`;
+              break;
             case 'chat':
               addMessage(msg.text, { kind: 'other', author: `Користувач ${msg.userId}` });
               break;
             case 'join':
+              members.add(msg.userId);
+              renderMembers();
               addMessage(`Користувач ${msg.userId} зайшов`);
               break;
             case 'leave':
+              members.delete(msg.userId);
+              renderMembers();
               addMessage(`Користувач ${msg.userId} вийшов`);
               break;
             default:
@@ -547,12 +690,20 @@
             }
 
             setStatus('offline', 'Офлайн');
-            addMessage(describeClose(event.code), { kind: 'error' });
+            setLobbyPending(true); // nothing to send to while offline
+
+            // Show the reason on whichever screen is visible
+            if (!lobbyForm.hidden) {
+              lobbyError.textContent = describeClose(event.code);
+            } else {
+              setScreen('room');
+              addMessage(describeClose(event.code), { kind: 'error' });
+            }
           });
         }
 
         const savedToken = loadToken();
-        if (savedToken) showChat(savedToken);
+        if (savedToken) startSession(savedToken);
         else showAuth();
     </script>
 </body>

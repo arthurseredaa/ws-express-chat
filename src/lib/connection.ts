@@ -6,6 +6,7 @@ import {parseClientMessage} from "./parse-client-message.ts";
 import {MessageRateLimiter} from "./message-rate-limiter.ts";
 import type {IncomingMessage} from "node:http";
 import {getUserIdFromRequest} from "./get-user-id-from-request.ts";
+import type {ServerMessage} from "../types.ts";
 
 export const handleConnection = (ws: WebSocket, request: IncomingMessage, registry: ClientRegistry)=> {
     const userId = getUserIdFromRequest(request);
@@ -18,8 +19,9 @@ export const handleConnection = (ws: WebSocket, request: IncomingMessage, regist
 
     if (oldSocket) {
         closeWithError(oldSocket, CloseError.SESSION_REPLACED)
-        oldSocket.close(CloseError.SESSION_REPLACED.code, CloseError.SESSION_REPLACED.reason);
     }
+
+    sendServerMessage(ws, {type: 'lobby'});
 
     const messageRateLimiter = new MessageRateLimiter(MESSAGE_COUNT_LIMIT, RATE_LIMIT_WINDOW);
 
@@ -77,4 +79,8 @@ export const handleConnection = (ws: WebSocket, request: IncomingMessage, regist
 
 const closeWithError = (ws: WebSocket, error: CloseErrorType)=> {
     ws.close(error.code, error.reason);
+}
+
+const sendServerMessage = (ws: WebSocket, data: ServerMessage) => {
+    ws.send(JSON.stringify(data))
 }

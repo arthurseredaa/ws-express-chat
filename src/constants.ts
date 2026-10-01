@@ -8,6 +8,10 @@ export const RATE_LIMIT_WINDOW = 5_000;
 export const MAX_ROOM_NAME_LENGTH = 32;
 
 export const CloseError = {
+    SERVER_SHUTDOWN: {
+        code: 1001,
+        reason: 'Server shutdown',
+    },
     RATE_LIMIT_EXCEEDED: {
         code: 4001,
         reason: 'Rate limit exceeded',

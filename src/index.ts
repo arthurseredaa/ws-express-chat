@@ -8,6 +8,7 @@ import {handleConnection} from "./lib/connection.ts";
 import {MAX_WS_PAYLOAD} from "./constants.ts";
 import {authRoutes} from "./routes/auth.ts";
 import {RoomRegistry} from "./lib/registry/room-registry.ts";
+import {gracefulShutdown} from "./lib/graceful-shutdown.ts";
 
 const app = express()
 const server = createServer(app);
@@ -29,7 +30,38 @@ wss.on('connection', (ws, request) => handleConnection({
     roomRegistry
 }));
 
-// TODO: add clearInterval on server shutdown
 const heartbeatIntervalId = startHeartbeat(clientRegistry);
 
 server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
+let shutdownStarted = false;
+
+process.on('SIGINT', (code) => {
+    if (shutdownStarted) {
+        return process.exit(1);
+    }
+
+    console.log(`received ${code}, shutting down`)
+    shutdownStarted = true;
+
+    gracefulShutdown({
+        server,
+        heartbeatIntervalId,
+        clientRegistry,
+    })
+})
+
+process.on('SIGTERM', (code) => {
+    if (shutdownStarted) {
+        return process.exit(1);
+    }
+
+    console.log(`received ${code}, shutting down`)
+    shutdownStarted = true;
+
+    gracefulShutdown({
+        server,
+        heartbeatIntervalId,
+        clientRegistry,
+    })
+})

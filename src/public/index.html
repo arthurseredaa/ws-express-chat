@@ -642,6 +642,7 @@
 
         // Must match the server's close codes (4000–4999 is the range reserved for applications)
         const CloseCode = {
+          SERVER_SHUTDOWN: 1001,
           MESSAGE_TOO_BIG: 1009,
           RATE_LIMIT_EXCEEDED: 4001,
           INVALID_MESSAGE: 4002,
@@ -652,6 +653,8 @@
         // Human-readable text for WebSocket close codes the server may send
         function describeClose(code) {
           switch (code) {
+            case CloseCode.SERVER_SHUTDOWN:
+              return 'The server is restarting, refresh the page in a moment';
             case CloseCode.MESSAGE_TOO_BIG:
               return 'Disconnected by the server: message is too big';
             case CloseCode.RATE_LIMIT_EXCEEDED:

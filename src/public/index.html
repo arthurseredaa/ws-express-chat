@@ -472,6 +472,7 @@
 
         let myUserId = null;
         let members = new Set();
+        let displayedRoom = null; // room currently on screen, to tell a reconnect from a new room
 
         function renderMembers() {
           const labels = [...members].map((id) => (id === myUserId ? `${id} (you)` : `${id}`));
@@ -491,6 +492,7 @@
         }
 
         function showLobby() {
+          displayedRoom = null;
           setScreen('lobby');
           setLobbyPending(false);
           lobbyError.textContent = '';
@@ -503,12 +505,24 @@
           members = new Set(memberIds);
           roomNameEl.textContent = `# ${room}`;
           renderMembers();
-          resetMessages();
-          addMessage(`You are in room "${room}"`);
+
+          // After a reconnect the server re-sends the snapshot of the same room:
+          // keep the messages already on screen instead of wiping them
+          if (room === displayedRoom) {
+            addMessage('Reconnected');
+          } else {
+            resetMessages();
+            addMessage(`You are in room "${room}"`);
+          }
+          displayedRoom = room;
           messageInput.focus();
         }
 
+        let sessionToken = null;
+
         function startSession(token) {
+          sessionToken = token;
+          reconnectAttempt = 0;
           setScreen('waiting');
           currentUser.textContent = emailFromToken(token);
           myUserId = userIdFromToken(token);
@@ -581,11 +595,14 @@
 
         logoutButton.addEventListener('click', () => {
           clearToken();
+          cancelReconnect();
+          sessionToken = null;
           const oldSocket = socket;
           socket = null; // so its close event is ignored below
           oldSocket?.close(1000, 'Logout');
           myUserId = null;
           members = new Set();
+          displayedRoom = null;
           resetMessages();
           showAuth();
         });
@@ -654,7 +671,7 @@
         function describeClose(code) {
           switch (code) {
             case CloseCode.SERVER_SHUTDOWN:
-              return 'The server is restarting, refresh the page in a moment';
+              return 'The server is restarting';
             case CloseCode.MESSAGE_TOO_BIG:
               return 'Disconnected by the server: message is too big';
             case CloseCode.RATE_LIMIT_EXCEEDED:
@@ -676,7 +693,10 @@
           socket = ws;
           setStatus('connecting', 'Connecting…');
 
-          ws.addEventListener('open', () => setStatus('online', 'Online'));
+          ws.addEventListener('open', () => {
+            reconnectAttempt = 0;
+            setStatus('online', 'Online');
+          });
 
           ws.addEventListener('message', (event) => renderServerMessage(JSON.parse(event.data)));
 
@@ -692,17 +712,71 @@
               return;
             }
 
-            setStatus('offline', 'Offline');
             setLobbyPending(true); // nothing to send to while offline
 
-            // Show the reason on whichever screen is visible
-            if (!lobbyForm.hidden) {
-              lobbyError.textContent = describeClose(event.code);
-            } else {
-              setScreen('room');
-              addMessage(describeClose(event.code), { kind: 'error' });
+            if (NO_RECONNECT.has(event.code)) {
+              setStatus('offline', 'Offline');
+              showCloseReason(describeClose(event.code));
+              return;
             }
+
+            // Only announce the first failure, not every retry
+            if (reconnectAttempt === 0) {
+              showCloseReason(`${describeClose(event.code)}. Reconnecting…`);
+            }
+            scheduleReconnect();
           });
+        }
+
+        // The server closed us on purpose: retrying would just repeat the same close
+        // (4004 would even make two tabs kick each other forever)
+        const NO_RECONNECT = new Set([
+          CloseCode.MESSAGE_TOO_BIG,
+          CloseCode.RATE_LIMIT_EXCEEDED,
+          CloseCode.INVALID_MESSAGE,
+          CloseCode.SESSION_REPLACED,
+        ]);
+
+        const RECONNECT_BASE_DELAY = 1000;
+        const RECONNECT_MAX_DELAY = 30_000;
+        let reconnectAttempt = 0;
+        let reconnectTimer = null;
+
+        // Exponential backoff (1s, 2s, 4s… up to 30s) with jitter, so that after a server
+        // restart all clients don't reconnect in the same millisecond
+        function scheduleReconnect() {
+          const backoff = Math.min(RECONNECT_MAX_DELAY, RECONNECT_BASE_DELAY * 2 ** reconnectAttempt);
+          const delay = Math.round(backoff * (0.5 + Math.random() * 0.5));
+          reconnectAttempt++;
+
+          setStatus('connecting', `Reconnecting in ${Math.ceil(delay / 1000)}s…`);
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connect(sessionToken);
+          }, delay);
+        }
+
+        function cancelReconnect() {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+          reconnectAttempt = 0;
+        }
+
+        // Back online (e.g. Wi-Fi returned): don't wait for the timer
+        window.addEventListener('online', () => {
+          if (reconnectTimer === null || sessionToken === null) return;
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+          connect(sessionToken);
+        });
+
+        // Shows a disconnect reason on whichever screen is visible
+        function showCloseReason(text) {
+          if (!lobbyForm.hidden) {
+            lobbyError.textContent = text;
+          } else if (!messagesList.hidden) {
+            addMessage(text, { kind: 'error' });
+          }
         }
 
         const savedToken = loadToken();

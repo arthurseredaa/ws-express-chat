@@ -24,4 +24,13 @@ export type JoinRoomMessage = {
     room: string;
 }
 
-export type ClientMessage = ChatMessage | JoinRoomMessage
+export type CreateRoomMessage = {
+    type: 'create_room',
+    room: string;
+}
+
+export type LeaveRoomMessage = {
+    type: 'leave_room',
+}
+
+export type ClientMessage = ChatMessage | JoinRoomMessage | CreateRoomMessage | LeaveRoomMessage

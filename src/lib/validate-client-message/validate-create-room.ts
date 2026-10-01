@@ -1,13 +1,13 @@
-import type {JoinRoomMessage} from "../../types.ts";
 import {validateRoomName} from "./validate-room-name.ts";
+import type {CreateRoomMessage} from "../../types.ts";
 
-export const validateJoinRoom = (data: object): JoinRoomMessage | null => {
+export const validateCreateRoom = (data: object): CreateRoomMessage | null => {
     const roomName = validateRoomName(data);
 
     if (!roomName) return null;
 
     return {
-        type: 'join_room',
+        type: 'create_room',
         room: roomName,
     }
 }

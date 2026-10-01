@@ -8,6 +8,12 @@ type ClientArgs = {
     ws: WebSocket;
 }
 
+type BroadcastMessageArgs = {
+    message: ServerMessage;
+    receivers: number[] | [];
+    exceptId?: number;
+}
+
 export class ClientRegistry {
     #clients = new Map<number, ClientState>();
 
@@ -28,16 +34,19 @@ export class ClientRegistry {
         this.#clients.delete(userId);
     }
 
-    broadcastMessage(data: ServerMessage, exceptId?: number): void {
-        const messageData = JSON.stringify(data);
+    broadcastMessage({message, receivers, exceptId}: BroadcastMessageArgs): void {
+        const messageData = JSON.stringify(message);
 
-        for (const [key, value] of this.#clients) {
-            if (exceptId === key) continue;
+        receivers.forEach(receiver => {
+            if (receiver === exceptId) return;
 
-            if (value.ws.readyState !== WebSocket.OPEN) continue;
+            const clientData = this.#clients.get(receiver);
 
-            value.ws.send(messageData);
-        }
+            if (!clientData) return;
+            if (clientData.ws.readyState !== WebSocket.OPEN) return;
+
+            clientData.ws.send(messageData);
+        })
     }
 
     markAlive({userId}: {userId: number}): void {

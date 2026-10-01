@@ -2,7 +2,7 @@ import {WebSocketServer} from 'ws';
 import express from 'express';
 import {createServer} from 'http';
 import * as path from "node:path";
-import {ClientRegistry} from "./client-registry.ts";
+import {ClientRegistry} from "./lib/registry/client-registry.ts";
 import {startHeartbeat} from "./lib/start-heartbeat.ts";
 import {handleConnection} from "./lib/connection.ts";
 import {MAX_WS_PAYLOAD} from "./constants.ts";

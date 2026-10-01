@@ -1,5 +1,5 @@
 import {WebSocket} from 'ws';
-import type {ServerMessage} from "./types.ts";
+import type {ServerMessage} from "../../types.ts";
 
 type ClientState = {ws: WebSocket, isAlive: boolean};
 

@@ -1,8 +1,8 @@
 import {HEARTBEAT_INTERVAL} from "../constants.ts";
-import type {ClientRegistry} from "../client-registry.ts";
+import type {ClientRegistry} from "./registry/client-registry.ts";
 
 export const startHeartbeat = (registry: ClientRegistry) => {
-    const interval = setInterval(() => {
+    return setInterval(() => {
         registry.iterateClients((clientState) => {
             if (!clientState.isAlive) {
                 clientState.ws.terminate();
@@ -12,6 +12,4 @@ export const startHeartbeat = (registry: ClientRegistry) => {
             }
         })
     }, HEARTBEAT_INTERVAL)
-
-    return interval;
 }

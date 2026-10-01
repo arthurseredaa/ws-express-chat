@@ -5,6 +5,8 @@ export const MESSAGE_LENGTH_LIMIT = 500;
 export const MESSAGE_COUNT_LIMIT = 5;
 export const RATE_LIMIT_WINDOW = 5_000;
 
+export const MAX_ROOM_NAME_LENGTH = 32;
+
 export const CloseError = {
     RATE_LIMIT_EXCEEDED: {
         code: 4001,

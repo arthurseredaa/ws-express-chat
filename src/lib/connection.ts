@@ -1,6 +1,6 @@
 import type {WebSocket} from "ws";
-import type {ClientRegistry} from "../client-registry.ts";
-import {validateClientMessage} from "./validate-client-message.ts";
+import type {ClientRegistry} from "./registry/client-registry.ts";
+import {validateClientMessage} from "./validate-client-message/validate-client-message.ts";
 import {CloseError, type CloseErrorType, MESSAGE_COUNT_LIMIT, RATE_LIMIT_WINDOW} from "../constants.ts";
 import {parseClientMessage} from "./parse-client-message.ts";
 import {MessageRateLimiter} from "./message-rate-limiter.ts";

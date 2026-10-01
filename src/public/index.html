@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="uk">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -305,29 +305,29 @@
             <h1>Realtime chat</h1>
             <div class="header-right">
                 <span id="current-user"></span>
-                <button id="logout-button" class="link-button" hidden>Вийти</button>
-                <span id="status" class="status" data-state="offline">Офлайн</span>
+                <button id="logout-button" class="link-button" hidden>Log out</button>
+                <span id="status" class="status" data-state="offline">Offline</span>
             </div>
         </header>
 
         <form id="auth-form" class="auth" hidden>
-            <h2>Вхід у чат</h2>
+            <h2>Sign in to chat</h2>
             <input id="auth-email" type="email" placeholder="Email" autocomplete="email" required>
-            <input id="auth-password" type="password" placeholder="Пароль (мін. 6 символів)" autocomplete="current-password" minlength="6" required>
+            <input id="auth-password" type="password" placeholder="Password (min. 6 characters)" autocomplete="current-password" minlength="6" required>
             <div class="auth-actions">
-                <button id="login-button" type="submit">Увійти</button>
-                <button id="register-button" type="button">Зареєструватися</button>
+                <button id="login-button" type="submit">Log in</button>
+                <button id="register-button" type="button">Sign up</button>
             </div>
             <p id="auth-error" role="alert"></p>
         </form>
 
         <form id="lobby-form" class="auth" hidden>
-            <h2>Лобі</h2>
-            <p class="hint">Створи нову кімнату або зайди в існуючу за її назвою.</p>
-            <input id="room-input" type="text" placeholder="Назва кімнати" autocomplete="off" maxlength="32" required>
+            <h2>Lobby</h2>
+            <p class="hint">Create a new room or join an existing one by its name.</p>
+            <input id="room-input" type="text" placeholder="Room name" autocomplete="off" maxlength="32" required>
             <div class="auth-actions">
-                <button id="create-room-button" class="primary" type="submit">Створити</button>
-                <button id="join-room-button" class="secondary" type="button">Зайти</button>
+                <button id="create-room-button" class="primary" type="submit">Create</button>
+                <button id="join-room-button" class="secondary" type="button">Join</button>
             </div>
             <p id="lobby-error" role="alert"></p>
         </form>
@@ -337,17 +337,17 @@
                 <span id="room-name"></span>
                 <span id="room-members"></span>
             </div>
-            <button id="leave-room-button" class="link-button">Вийти з кімнати</button>
+            <button id="leave-room-button" class="link-button">Leave room</button>
         </div>
 
         <ul id="messages" aria-live="polite" hidden>
-            <li class="empty">Повідомлень поки немає</li>
+            <li class="empty">No messages yet</li>
         </ul>
 
         <div id="composer" class="composer" hidden>
-            <input id="message-input" type="text" placeholder="Повідомлення" autocomplete="off" enterkeyhint="send">
+            <input id="message-input" type="text" placeholder="Message" autocomplete="off" enterkeyhint="send">
             <span id="char-counter"></span>
-            <button id="send-button" disabled>Надіслати</button>
+            <button id="send-button" disabled>Send</button>
         </div>
     </main>
 
@@ -445,7 +445,7 @@
         function resetMessages() {
           const empty = document.createElement('li');
           empty.className = 'empty';
-          empty.textContent = 'Повідомлень поки немає';
+          empty.textContent = 'No messages yet';
           messagesList.replaceChildren(empty);
         }
 
@@ -474,8 +474,8 @@
         let members = new Set();
 
         function renderMembers() {
-          const labels = [...members].map((id) => (id === myUserId ? `${id} (ви)` : `${id}`));
-          roomMembersEl.textContent = `Учасники (${members.size}): ${labels.join(', ')}`;
+          const labels = [...members].map((id) => (id === myUserId ? `${id} (you)` : `${id}`));
+          roomMembersEl.textContent = `Members (${members.size}): ${labels.join(', ')}`;
         }
 
         function setLobbyPending(pending) {
@@ -486,7 +486,7 @@
           setScreen('auth');
           currentUser.textContent = '';
           authError.textContent = message;
-          setStatus('offline', 'Офлайн');
+          setStatus('offline', 'Offline');
           authEmail.focus();
         }
 
@@ -504,7 +504,7 @@
           roomNameEl.textContent = `# ${room}`;
           renderMembers();
           resetMessages();
-          addMessage(`Ви в кімнаті «${room}»`);
+          addMessage(`You are in room "${room}"`);
           messageInput.focus();
         }
 
@@ -538,8 +538,8 @@
         });
 
         const ErrorText = {
-          room_exists: 'Кімната з такою назвою вже існує',
-          room_not_found: 'Кімнати з такою назвою немає',
+          room_exists: 'A room with this name already exists',
+          room_not_found: 'There is no room with this name',
         };
 
         // mode: 'login' | 'register' — both endpoints take {email, password} and return {token}
@@ -558,7 +558,7 @@
             const body = await response.json().catch(() => ({}));
 
             if (!response.ok || !body.token) {
-              authError.textContent = body.error ?? `Помилка ${response.status}`;
+              authError.textContent = body.error ?? `Error ${response.status}`;
               return;
             }
 
@@ -567,7 +567,7 @@
             resetMessages();
             startSession(body.token);
           } catch {
-            authError.textContent = 'Сервер недоступний';
+            authError.textContent = 'Server is unavailable';
           } finally {
             loginButton.disabled = registerButton.disabled = false;
           }
@@ -620,20 +620,20 @@
               break;
             case 'error':
               setLobbyPending(false);
-              lobbyError.textContent = ErrorText[msg.code] ?? `Помилка: ${msg.code}`;
+              lobbyError.textContent = ErrorText[msg.code] ?? `Error: ${msg.code}`;
               break;
             case 'chat':
-              addMessage(msg.text, { kind: 'other', author: `Користувач ${msg.userId}` });
+              addMessage(msg.text, { kind: 'other', author: `User ${msg.userId}` });
               break;
             case 'join':
               members.add(msg.userId);
               renderMembers();
-              addMessage(`Користувач ${msg.userId} зайшов`);
+              addMessage(`User ${msg.userId} joined`);
               break;
             case 'leave':
               members.delete(msg.userId);
               renderMembers();
-              addMessage(`Користувач ${msg.userId} вийшов`);
+              addMessage(`User ${msg.userId} left`);
               break;
             default:
               console.warn('Unknown message type', msg);
@@ -653,15 +653,15 @@
         function describeClose(code) {
           switch (code) {
             case CloseCode.MESSAGE_TOO_BIG:
-              return 'Сервер відключив вас: повідомлення завелике';
+              return 'Disconnected by the server: message is too big';
             case CloseCode.RATE_LIMIT_EXCEEDED:
-              return 'Сервер відключив вас: забагато повідомлень, пишіть повільніше';
+              return 'Disconnected by the server: too many messages, slow down';
             case CloseCode.INVALID_MESSAGE:
-              return 'Сервер відключив вас: некоректне повідомлення';
+              return 'Disconnected by the server: invalid message';
             case CloseCode.SESSION_REPLACED:
-              return 'Чат відкрито в іншій вкладці';
+              return 'Chat was opened in another tab';
             default:
-              return 'Зʼєднання з сервером втрачено';
+              return 'Connection to the server was lost';
           }
         }
 
@@ -671,9 +671,9 @@
           const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
           const ws = new WebSocket(`${protocol}://${location.host}/?token=${encodeURIComponent(token)}`);
           socket = ws;
-          setStatus('connecting', 'Підключення…');
+          setStatus('connecting', 'Connecting…');
 
-          ws.addEventListener('open', () => setStatus('online', 'Онлайн'));
+          ws.addEventListener('open', () => setStatus('online', 'Online'));
 
           ws.addEventListener('message', (event) => renderServerMessage(JSON.parse(event.data)));
 
@@ -685,11 +685,11 @@
 
             if (event.code === CloseCode.UNAUTHORIZED) {
               clearToken();
-              showAuth('Сесія недійсна або закінчилась, увійдіть знову');
+              showAuth('Your session is invalid or has expired, please log in again');
               return;
             }
 
-            setStatus('offline', 'Офлайн');
+            setStatus('offline', 'Offline');
             setLobbyPending(true); // nothing to send to while offline
 
             // Show the reason on whichever screen is visible

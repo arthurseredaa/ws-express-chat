@@ -51,7 +51,6 @@ process.on('SIGINT', (code) => {
     })
 })
 
-
 process.on('SIGTERM', (code) => {
     if (shutdownStarted) {
         return process.exit(1);

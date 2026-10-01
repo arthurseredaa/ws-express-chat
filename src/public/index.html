@@ -484,13 +484,13 @@
         function renderServerMessage(msg) {
           switch (msg.type) {
             case 'chat':
-              addMessage(msg.text, { kind: 'other', author: `Клієнт ${msg.clientId}` });
+              addMessage(msg.text, { kind: 'other', author: `Користувач ${msg.userId}` });
               break;
             case 'join':
-              addMessage(`Клієнт ${msg.clientId} зайшов`);
+              addMessage(`Користувач ${msg.userId} зайшов`);
               break;
             case 'leave':
-              addMessage(`Клієнт ${msg.clientId} вийшов`);
+              addMessage(`Користувач ${msg.userId} вийшов`);
               break;
             default:
               console.warn('Unknown message type', msg);
@@ -503,6 +503,7 @@
           RATE_LIMIT_EXCEEDED: 4001,
           INVALID_MESSAGE: 4002,
           UNAUTHORIZED: 4003,
+          SESSION_REPLACED: 4004,
         };
 
         // Human-readable text for WebSocket close codes the server may send
@@ -514,6 +515,8 @@
               return 'Сервер відключив вас: забагато повідомлень, пишіть повільніше';
             case CloseCode.INVALID_MESSAGE:
               return 'Сервер відключив вас: некоректне повідомлення';
+            case CloseCode.SESSION_REPLACED:
+              return 'Чат відкрито в іншій вкладці';
             default:
               return 'Зʼєднання з сервером втрачено';
           }

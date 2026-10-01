@@ -14,26 +14,32 @@ export const handleConnection = (ws: WebSocket, request: IncomingMessage, regist
         return closeWithError(ws, CloseError.UNAUTHORIZED);
     }
 
-    const clientId = registry.registerClient(ws);
+    const oldSocket = registry.registerClient({ws, userId});
+
+    if (oldSocket) {
+        closeWithError(oldSocket, CloseError.SESSION_REPLACED)
+        oldSocket.close(CloseError.SESSION_REPLACED.code, CloseError.SESSION_REPLACED.reason);
+    }
+
     const messageRateLimiter = new MessageRateLimiter(MESSAGE_COUNT_LIMIT, RATE_LIMIT_WINDOW);
 
-    console.log(`[c_id: ${clientId}, u_id: ${userId}] connected`);
+    console.log(`[c_id: ${userId}, u_id: ${userId}] connected`);
 
-    registry.broadcastMessage({
-        type: 'join',
-        clientId,
-    }, clientId);
+    // registry.broadcastMessage({
+    //     type: 'join',
+    //     userId,
+    // }, userId);
 
     ws.on('pong', () => {
-        registry.markAlive(clientId);
+        registry.markAlive({ userId });
     })
 
     ws.on('error', console.error);
 
     ws.on('close', () => {
-        console.log(`Client ID: ${clientId} disconnected`);
-        registry.broadcastMessage({clientId, type: 'leave'}, clientId);
-        registry.deleteClient(clientId);
+        console.log(`Client ID: ${userId} disconnected`);
+        // registry.broadcastMessage({userId, type: 'leave'}, userId);
+        registry.deleteClient({ws, userId});
     });
 
     ws.on('message', (data) => {
@@ -50,11 +56,22 @@ export const handleConnection = (ws: WebSocket, request: IncomingMessage, regist
             return closeWithError(ws, CloseError.INVALID_MESSAGE);
         }
 
-        registry.broadcastMessage({
-            clientId,
-            text: messageData.text,
-            type: 'chat',
-        }, clientId)
+        switch (messageData.type) {
+            case 'chat':
+                return registry.broadcastMessage({
+                    userId,
+                    text: messageData.text,
+                    type: 'chat',
+                }, userId)
+            case 'create_room':
+            case "join_room":
+            case "leave_room":
+                break;
+            default:
+                break;
+        }
+
+
     })
 }
 

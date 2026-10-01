@@ -3,17 +3,29 @@ import type {ServerMessage} from "../../types.ts";
 
 type ClientState = {ws: WebSocket, isAlive: boolean};
 
+type ClientArgs = {
+    userId: number;
+    ws: WebSocket;
+}
+
 export class ClientRegistry {
     #clients = new Map<number, ClientState>();
-    #counter = 0;
 
-    registerClient(ws: WebSocket): number {
-        const clientId = ++this.#counter;
+    registerClient({userId, ws}: ClientArgs): WebSocket | null {
+        const currentSocket = this.#clients.get(userId);
 
         const clientState: ClientState = {ws, isAlive: true}
-        this.#clients.set(clientId, clientState);
+        this.#clients.set(userId, clientState);
 
-        return clientId;
+        return currentSocket?.ws ?? null;
+    }
+
+    deleteClient({userId, ws}: ClientArgs): void {
+        const currentSocket = this.#clients.get(userId);
+
+        if (currentSocket?.ws !== ws) return;
+
+        this.#clients.delete(userId);
     }
 
     broadcastMessage(data: ServerMessage, exceptId?: number): void {
@@ -28,16 +40,12 @@ export class ClientRegistry {
         }
     }
 
-    markAlive(id: number): void {
-        const client = this.#clients.get(id);
+    markAlive({userId}: {userId: number}): void {
+        const client = this.#clients.get(userId);
 
         if (client) {
             client.isAlive = true;
         }
-    }
-
-    deleteClient(id: number): void {
-        this.#clients.delete(id);
     }
 
     iterateClients(cb: (client: ClientState) => void): void {

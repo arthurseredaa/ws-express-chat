@@ -1,13 +1,13 @@
 export type ServerMessage = {
     type: 'chat';
-    clientId: number;
+    userId: number;
     text: string;
 } | {
     type: 'leave';
-    clientId: number;
+    userId: number;
 } | {
     type: 'join';
-    clientId: number;
+    userId: number;
 } | {
     type: 'room_joined';
     room: string;

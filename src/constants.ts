@@ -19,6 +19,10 @@ export const CloseError = {
     UNAUTHORIZED: {
         code: 4003,
         reason: 'Unauthorized',
+    },
+    SESSION_REPLACED: {
+        code: 4004,
+        reason: 'Session expired',
     }
 } as const;
 
